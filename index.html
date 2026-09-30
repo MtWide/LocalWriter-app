@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<meta name="theme-color" content="#1b1a18">
+<title>ローカル執筆帳</title>
+<script>
+  try { document.documentElement.dataset.theme = localStorage.getItem('lw_theme') || 'dark'; }
+  catch { document.documentElement.dataset.theme = 'dark'; }
+  // スマホ版（GitHub Pages から開いたとき）はアプリとしてインストールできるようにする
+  if (location.protocol === 'https:') {
+    const l = document.createElement('link'); l.rel = 'manifest'; l.href = 'manifest.webmanifest'; document.head.appendChild(l);
+  }
+</script>
+<style>
+:root{
+  --bg:#1b1a18; --panel:#23221f; --side:#1f1e1b; --ink:#e6e1d6; --sub:#978f82; --line:#37352f;
+  --accent:#c9a36a; --accent-ink:#1b1a18; --hover:#2d2b27; --active:#3a3530;
+  --ok:#86c291; --warn:#e0a060; --err:#e57b7b; --sel:rgba(201,163,106,.38);
+  --font-size:17px;
+  --colw:calc(var(--font-size) * 41);
+  color-scheme: dark;
+}
+:root[data-theme="light"]{
+  --bg:#f6f3ec; --panel:#fffdf8; --side:#efebe2; --ink:#2b2822; --sub:#7a7266; --line:#ddd5c6;
+  --accent:#8a6d3b; --accent-ink:#fff; --hover:#e8e2d6; --active:#e0d6c3;
+  --ok:#3f7a4a; --warn:#b5651d; --err:#b23b3b; --sel:rgba(138,109,59,.28);
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;display:flex;flex-direction:column}
+::selection{background:var(--sel)}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+#fname{font-weight:600;margin-right:auto;max-width:44ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button{font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:default}
+.colctl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);padding:0 4px}
+.colctl input{width:110px;accent-color:var(--accent)}
+#colLabel{min-width:3.2em;color:var(--ink)}
+.autoctl{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--sub);padding:0 4px;white-space:nowrap}
+.autoctl select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.sep{width:1px;height:20px;background:var(--line);margin:0 2px}
+
+/* 検索・置換 */
+#findbar{display:none;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel);font-size:13px}
+#findbar.open{display:flex}
+#findbar input[type=text]{font:inherit;font-size:14px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:min(260px,70vw)}
+#findbar input[type=text]:focus{outline:none;border-color:var(--accent)}
+#findbar input.bad{border-color:var(--err)}
+#findbar label{display:flex;align-items:center;gap:4px;color:var(--sub);cursor:pointer}
+#findCount{color:var(--sub);min-width:6em}
+.frow{display:flex;gap:6px;align-items:center}
+
+main{flex:1;display:flex;min-height:0}
+#side{width:var(--side-w,260px);min-width:170px;max-width:60vw;flex:none;display:flex;flex-direction:column;background:var(--side);min-height:0}
+#side[hidden],#resizer.off{display:none}
+#resizer{width:5px;flex:none;cursor:col-resize;background:var(--line);opacity:.6}
+#resizer:hover,#resizer.drag{background:var(--accent);opacity:1}
+.side-head{display:flex;align-items:center;gap:4px;padding:8px 8px 8px 10px;border-bottom:1px solid var(--line)}
+#dirName{flex:1;cursor:pointer;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-head button{padding:3px 7px;font-size:12px}
+#fileList{flex:1;overflow:auto;padding:4px 0 16px;font-size:13px;user-select:none}
+.row{display:flex;align-items:center;gap:5px;padding:4px 8px;cursor:pointer;border-left:3px solid transparent;white-space:nowrap}
+.row:hover{background:var(--hover)}
+.row .tw{width:12px;flex:none;color:var(--sub);font-size:10px;text-align:center}
+.row .ic{flex:none;font-size:12px;opacity:.85}
+.row .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.row .dt{color:var(--sub);font-size:11px;flex:none}
+.row.dir .nm{font-weight:600}
+.row.target{box-shadow:inset 0 0 0 1px var(--accent)}
+.row.current{background:var(--active);border-left-color:var(--accent)}
+.side-empty{padding:16px 12px;color:var(--sub);font-size:12px;line-height:1.8}
+.side-empty button{display:block;width:100%;margin-top:8px}
+.side-foot{padding:6px 10px;border-top:1px solid var(--line);font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{padding:14px 12px;color:var(--sub);font-size:12px;line-height:1.7}
+
+#editWrap{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+#titleRow{display:flex;align-items:center;gap:8px;padding:14px max(24px,calc(50% - var(--colw) / 2)) 10px;border-bottom:1px solid var(--line)}
+#titleInput{flex:1;min-width:0;font:inherit;font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif;font-size:calc(var(--font-size) * 1.3);font-weight:600;
+  padding:6px 8px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--ink)}
+#titleInput:hover{border-color:var(--line)}
+#titleInput:focus{outline:none;border-color:var(--accent);background:var(--panel)}
+#titleInput::placeholder{color:var(--sub);font-weight:400}
+#titleExt{color:var(--sub);font-size:12px;flex:none}
+#editor{flex:1;min-height:0;width:100%;border:0;outline:0;resize:none;padding:24px max(24px,calc(50% - var(--colw) / 2));background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif;font-size:var(--font-size);line-height:1.9;tab-size:2;overflow-wrap:break-word}
+#preview{display:none;flex:1;min-width:0;overflow:auto;padding:24px;border-left:1px solid var(--line);background:var(--panel);
+  font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif;font-size:var(--font-size);line-height:1.9}
+main.split #preview{display:block}
+#preview p{margin:0;min-height:1em}
+#preview.vertical{writing-mode:vertical-rl;overflow-x:auto;overflow-y:hidden}
+#preview rt{font-size:.5em}
+.boten{text-emphasis:filled sesame;-webkit-text-emphasis:filled sesame}
+
+footer{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:6px 12px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--sub)}
+#status{margin-left:auto;font-weight:600}
+#status.ok{color:var(--ok)} #status.warn{color:var(--warn)} #status.err{color:var(--err)}
+
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);width:min(560px,92vw);max-height:80vh;padding:0}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-weight:600}
+.dlg-body{padding:8px 16px 16px;overflow:auto;max-height:60vh}
+.snap{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.snap .meta{flex:1;min-width:0}
+.snap .preview-line{color:var(--sub);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note{font-size:12px;color:var(--sub);line-height:1.6}
+#toast{position:fixed;left:50%;bottom:48px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:10}
+#toast.show{opacity:.94}
+.field{display:flex;flex-direction:column;gap:4px;margin:10px 0;font-size:13px;color:var(--sub)}
+.field input{font:inherit;font-size:15px;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.field input:focus{outline:none;border-color:var(--accent)}
+.note a{color:var(--accent)}
+/* スマホ：ボタンは1行で横スクロール、一覧は左から出る引き出し */
+@media (max-width:760px){
+  header{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:6px 8px}
+  header::-webkit-scrollbar{display:none}
+  #fname,.colctl,.sep{display:none}
+  button{padding:7px 11px;font-size:14px}
+  main{flex-direction:column;position:relative}
+  #side{position:absolute;inset:0 auto 0 0;width:min(86vw,360px);max-width:none;z-index:5;border-right:1px solid var(--line);box-shadow:4px 0 18px rgba(0,0,0,.35)}
+  .side-head button{padding:6px 9px;font-size:13px}
+  #fileList{font-size:15px}
+  .row{padding:9px 10px}
+  #resizer{display:none}
+  #titleRow{padding:10px 12px 6px}
+  #editor{padding:14px 16px}
+  #preview{border-left:0;border-top:1px solid var(--line);padding:16px}
+  footer{gap:10px;padding:5px 10px}
+}
+</style>
+</head>
+<body>
+<header>
+  <span id="fname">無題</span>
+  <button id="btnSide" aria-pressed="false" title="ファイル一覧の表示/非表示">一覧</button>
+  <button id="btnOpenDir" title="フォルダを開いてファイル一覧を表示">フォルダを開く</button>
+  <button id="btnReopenDir" hidden>前回のフォルダ</button>
+  <button id="btnNew" title="新規ファイル">新規</button>
+  <button id="btnOpen" title="ファイルを1つだけ開く (Ctrl+O)">ファイルを開く</button>
+  <button id="btnReopen" hidden>前回のファイル</button>
+  <button id="btnSave" class="primary" title="保存 (Ctrl+S)">保存</button>
+  <button id="btnSaveAs" title="名前を付けて保存 (Ctrl+Shift+S)">別名保存</button>
+  <button id="btnPush" title="保存して GitHub と同期（PCの変更を送り、スマホでの変更を取り込む）" hidden>同期</button>
+  <button id="btnGhSettings" title="GitHub の接続設定" hidden>設定</button>
+  <span class="sep"></span>
+  <button id="btnFind" title="検索・置換 (Ctrl+F / Ctrl+H)">検索・置換</button>
+  <button id="btnHistory" title="自動で取ったバックアップ">履歴</button>
+  <button id="btnPreview" aria-pressed="false" title="ルビ・傍点のプレビュー">プレビュー</button>
+  <button id="btnVertical" aria-pressed="false" title="プレビューを縦書きに">縦書き</button>
+  <button id="btnSmaller" title="文字を小さく">A−</button>
+  <button id="btnLarger" title="文字を大きく">A＋</button>
+  <label class="autoctl" title="変更してからこの時間がたったら自動で保存（「保存」ボタン・Ctrl+S はいつでもすぐ保存）">自動保存<select id="autosaveSel">
+    <option value="0">しない</option><option value="1">1分後</option><option value="3">3分後</option><option value="5">5分後</option>
+    <option value="10">10分後</option><option value="15">15分後</option><option value="30">30分後</option></select></label>
+  <label class="colctl" title="本文欄の幅（1行の文字数）">幅<input type="range" id="colRange" min="15" max="81" step="1"><span id="colLabel">40字</span></label>
+  <button id="btnTheme" title="ダーク/ライト切り替え">ライト</button>
+  <input type="file" id="fileInput" accept=".txt,.md,text/plain" hidden>
+</header>
+
+<div id="findbar">
+  <div class="frow">
+    <input type="text" id="findInput" placeholder="検索" autocomplete="off">
+    <button id="btnPrev" title="前へ (Shift+Enter)">▲</button>
+    <button id="btnNext" title="次へ (Enter)">▼</button>
+    <span id="findCount"></span>
+  </div>
+  <div class="frow">
+    <input type="text" id="replInput" placeholder="置換後" autocomplete="off">
+    <button id="btnReplOne">置換</button>
+    <button id="btnReplAll">すべて置換</button>
+  </div>
+  <label><input type="checkbox" id="optCase">大文字小文字を区別</label>
+  <label><input type="checkbox" id="optRegex">正規表現</label>
+  <button id="btnCloseFind" title="閉じる (Esc)">×</button>
+</div>
+
+<main id="main">
+  <aside id="side">
+    <div class="side-head">
+      <span id="dirName">フォルダ未選択</span>
+      <button id="btnNewInDir" title="選んでいるフォルダに新規ファイル">＋ファイル</button>
+      <button id="btnNewDir" title="選んでいるフォルダの中にフォルダを作る">＋フォルダ</button>
+      <button id="btnRefresh" title="一覧を更新">↻</button>
+    </div>
+    <div id="fileList"></div>
+    <div class="side-foot" id="sideFoot"></div>
+  </aside>
+  <div id="resizer" title="ドラッグで幅を変更"></div>
+  <div id="editWrap">
+    <div id="titleRow">
+      <input type="text" id="titleInput" placeholder="タイトル（そのままファイル名になります）" autocomplete="off" spellcheck="false">
+      <span id="titleExt">.txt</span>
+    </div>
+    <textarea id="editor" spellcheck="false" placeholder="本文を書き始めると、開いているフォルダに自動で保存されます。&#10;&#10;ルビ：|漢字《かんじ》 または 漢字《かんじ》&#10;傍点：《《強調》》"></textarea>
+  </div>
+  <div id="preview"></div>
+</main>
+
+<footer>
+  <span>文字数 <b id="cAll">0</b></span>
+  <span>空白・改行除く <b id="cNoSpace">0</b></span>
+  <span>行 <b id="cLines">1</b></span>
+  <span id="selWrap" hidden>選択 <b id="cSel">0</b></span>
+  <span id="status" class="ok">—</span>
+</footer>
+
+<dialog id="dlgHistory">
+  <div class="dlg-head"><span>履歴（自動バックアップ）</span><button id="btnCloseHistory">閉じる</button></div>
+  <div class="dlg-body">
+    <p class="note">書いている間は5分おき、手動保存やすべて置換のたびに、本文をブラウザの中に控えています（ファイルごとに最新50件）。復元するときは、今の本文も履歴に残してから差し替えます。</p>
+    <div id="snapList"></div>
+  </div>
+</dialog>
+
+<dialog id="dlgGh">
+  <div class="dlg-head"><span>GitHub の設定</span><button id="btnCloseGh">閉じる</button></div>
+  <div class="dlg-body">
+    <p class="note">スマホ版は、原稿を GitHub のリポジトリに直接保存します。PC の保存係は、起動時と画面に戻ったときにこの変更を取り込みます。</p>
+    <label class="field">リポジトリ（持ち主/名前）<input id="ghRepo" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <label class="field">ブランチ<input id="ghBranch" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <label class="field">原稿フォルダ<input id="ghRoot" autocomplete="off" spellcheck="false"></label>
+    <label class="field">アクセストークン<input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+    <p class="note"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">トークンを作るページ</a>で、Repository access を「Only select repositories」にして上のリポジトリだけを選び、Permissions の「Contents」を「Read and write」にして作ってください。トークンはこの端末の中にだけ保存されます。</p>
+    <div class="frow"><button id="btnGhSave" class="primary">接続して保存</button><span id="ghMsg" class="note"></span></div>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const editor = $('editor'), preview = $('preview'), statusEl = $('status');
+  const FS = 'showOpenFilePicker' in window;
+  const DRAFT_MS = 1500, SNAP_INTERVAL_MS = 5 * 60 * 1000, SNAP_KEEP = 50;
+  const DRAFT_KEY = 'lw_draft', SETTINGS_KEY = 'lw_settings', THEME_KEY = 'lw_theme';
+  const TEXT_RE = /\.(txt|md)$/i;
+
+  // ---------- 固定フォルダモード（起動.bat から開いたとき） ----------
+  // 保存用サーバー（server.ps1）経由で、決まったフォルダだけを読み書きする
+  let SERVER = null;          // {root, full}
+  async function api(op, args = {}) {
+    let r;
+    try {
+      r = await fetch('/api', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.assign({op}, args))});
+    } catch { throw new Error('保存用のウィンドウが閉じています。「起動.bat」をもう一度実行してください'); }
+    const j = await r.json().catch(() => ({ok: false, error: '保存用サーバーの応答が変です'}));
+    if (!j.ok) { const e = new Error(j.error || 'エラー'); if (/見つかりません|Could not find|does not exist/i.test(j.error || '')) e.name = 'NotFoundError'; throw e; }
+    return j;
+  }
+  const join = (a, b) => a ? a + '/' + b : b;
+  class SFile {
+    constructor(rel, mtime) { this.kind = 'file'; this.rel = rel; this.name = rel.split('/').pop(); this._mt = mtime; }
+    async queryPermission() { return 'granted'; }
+    async requestPermission() { return 'granted'; }
+    async getFile() {
+      const self = this;
+      let mt = this._mt;
+      if (mt == null) { const j = await api('stat', {path: this.rel}); mt = j.mtime; }
+      return {lastModified: mt, text: async () => { const j = await api('read', {path: self.rel}); self._mt = j.mtime; return j.text; }};
+    }
+    async createWritable() {
+      const self = this; let buf = '';
+      return {write: async t => { buf += t; }, close: async () => { const j = await api('write', {path: self.rel, text: buf}); self._mt = j.mtime; }};
+    }
+    async move(newName) {
+      const parent = this.rel.includes('/') ? this.rel.slice(0, this.rel.lastIndexOf('/')) : '';
+      const to = join(parent, newName);
+      await api('rename', {from: this.rel, to});
+      this.rel = to; this.name = newName;
+    }
+  }
+  class SDir {
+    constructor(rel, name) { this.kind = 'directory'; this.rel = rel; this.name = name; }
+    async queryPermission() { return 'granted'; }
+    async requestPermission() { return 'granted'; }
+    async *entries() {
+      const j = await api('ls', {path: this.rel});
+      for (const e of (j.items || [])) {
+        const r = join(this.rel, e.name);
+        yield [e.name, e.kind === 'file' ? new SFile(r, e.mtime) : new SDir(r, e.name)];
+      }
+    }
+    async getFileHandle(name, {create = false} = {}) {
+      const r = join(this.rel, name);
+      const j = await api('stat', {path: r});
+      if (j.exists && j.kind === 'file') return new SFile(r, j.mtime);
+      if (j.exists) { const e = new Error('フォルダです'); e.name = 'TypeMismatchError'; throw e; }
+      if (!create) { const e = new Error('ありません'); e.name = 'NotFoundError'; throw e; }
+      const w = await api('write', {path: r, text: ''});
+      return new SFile(r, w.mtime);
+    }
+    async getDirectoryHandle(name, {create = false} = {}) {
+      const r = join(this.rel, name);
+      const j = await api('stat', {path: r});
+      if (j.exists && j.kind === 'directory') return new SDir(r, name);
+      if (j.exists) { const e = new Error('ファイルです'); e.name = 'TypeMismatchError'; throw e; }
+      if (!create) { const e = new Error('ありません'); e.name = 'NotFoundError'; throw e; }
+      await api('mkdir', {path: r});
+      return new SDir(r, name);
+    }
+    async removeEntry() { throw new Error('削除はエクスプローラーで行ってください'); }
+    async resolve(h) {
+      const base = this.rel ? this.rel + '/' : '';
+      if (!h || typeof h.rel !== 'string' || !h.rel.startsWith(base)) return null;
+      return h.rel.slice(base.length).split('/');
+    }
+  }
+  async function detectServer() {
+    if (location.protocol !== 'http:') return null;
+    try { const j = await api('ping'); return {root: j.root, full: j.full, version: j.version || 1}; } catch { return null; }
+  }
+
+  // ---------- GitHub モード（スマホ版：GitHub のリポジトリを直接読み書きする） ----------
+  const ON_WEB = location.protocol === 'https:';     // GitHub Pages などから開いたとき
+  const GH_KEY = 'lw_github';
+  const GH_DEFAULT = {repo: 'MtWide/LocalWriter', branch: 'master', root: '原稿', token: ''};
+  const GH_RECHECK_MS = 2 * 60 * 1000;      // アプリに戻ったときの一覧・原稿の確認は2分に1回まで
+  let ghLastCheck = 0;
+  let GHMODE = false, GH = null;
+  const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+  const b64enc = s => { const b = new TextEncoder().encode(s); let bin = ''; for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(bin); };
+  const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob((s || '').replace(/\s/g, '')), c => c.charCodeAt(0)));
+  const stamp = () => { const d = new Date(), z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); };
+  const ghRepoPath = cfg => '/repos/' + cfg.repo.split('/').map(encodeURIComponent).join('/');
+  const ghFull = rel => (GH.root ? GH.root + '/' : '') + rel;
+  const ghRootName = () => GH.root ? GH.root.split('/').pop() : GH.repo.split('/').pop();
+
+  async function ghApi(method, url, body, cfg = GH) {
+    let r;
+    try {
+      r = await fetch('https://api.github.com' + url, {method, cache: 'no-store',
+        headers: Object.assign({'Authorization': 'Bearer ' + cfg.token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}, body ? {'Content-Type': 'application/json'} : {}),
+        body: body ? JSON.stringify(body) : undefined});
+    } catch { throw new Error('GitHub につながりません（電波を確認してください）。本文はこの端末に残っています'); }
+    if (r.status === 204) return {};
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const m = j.message || '';
+      const e = new Error(r.status === 401 ? 'トークンが無効か期限切れです（「設定」から入れ直してください）'
+        : r.status === 403 ? (/rate limit/i.test(m) ? 'GitHub の回数制限です。少し待ってください' : 'このトークンには書き込み権限がありません（Contents を Read and write に）')
+        : r.status === 404 ? '見つかりません（リポジトリ名・ブランチ・トークンの対象を確認してください）'
+        : 'GitHub エラー ' + r.status + '：' + m);
+      if (r.status === 404) e.name = 'NotFoundError';
+      if (r.status === 409 || (r.status === 422 && /sha/i.test(m))) e.name = 'ConflictError';
+      throw e;
+    }
+    return j;
+  }
+
+  // リポジトリの中身の一覧（1回の問い合わせで全部取る）。まだ GitHub に無い新規ファイル・空フォルダも覚えておく
+  const ghStore = {
+    files: new Map(), dirs: new Set(), pending: new Map(), extraDirs: new Set(),
+    async load() {
+      const j = await ghApi('GET', ghRepoPath(GH) + '/git/trees/' + encodeURIComponent(GH.branch) + '?recursive=1');
+      const pre = GH.root ? GH.root + '/' : '';
+      this.files = new Map(); this.dirs = new Set();
+      for (const e of j.tree || []) {
+        if (!e.path.startsWith(pre)) continue;
+        const rel = e.path.slice(pre.length);
+        if (e.type === 'blob') this.files.set(rel, e.sha); else if (e.type === 'tree') this.dirs.add(rel);
+      }
+      for (const rel of [...this.pending.keys()]) if (this.files.has(rel)) this.pending.delete(rel);
+      for (const d of [...this.extraDirs]) if (this.dirs.has(d)) this.extraDirs.delete(d);
+    },
+    children(rel) {
+      const parentOf = p => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+      const out = new Map(), dirs = new Set([...this.dirs, ...this.extraDirs]);
+      for (const p of this.pending.keys()) { let q = parentOf(p); while (q) { dirs.add(q); q = parentOf(q); } }
+      for (const d of dirs) if (parentOf(d) === rel) out.set(d, {kind: 'directory', rel: d});
+      for (const [p, sha] of this.files) if (parentOf(p) === rel) out.set(p, {kind: 'file', rel: p, sha});
+      for (const [p, f] of this.pending) if (parentOf(p) === rel) out.set(p, {kind: 'file', rel: p, obj: f});
+      return [...out.values()].map(e => Object.assign(e, {name: e.rel.split('/').pop()}));
+    },
+  };
+
+  class GFile {
+    constructor(rel, sha) { this.kind = 'file'; this.rel = rel; this.name = rel.split('/').pop(); this.sha = sha || null; this._text = null; }
+    async queryPermission() { return 'granted'; }
+    async requestPermission() { return 'granted'; }
+    // GitHub 上の今の内容・sha・最終コミット時刻
+    async fetchRemote() {
+      if (!this.sha && !ghStore.files.has(this.rel)) return {text: '', sha: null, time: 0};
+      const full = ghFull(this.rel);
+      const [c, commits] = await Promise.all([
+        ghApi('GET', ghRepoPath(GH) + '/contents/' + encPath(full) + '?ref=' + encodeURIComponent(GH.branch)),
+        ghApi('GET', ghRepoPath(GH) + '/commits?per_page=1&sha=' + encodeURIComponent(GH.branch) + '&path=' + encodeURIComponent(full)).catch(() => [])]);
+      const text = c.encoding === 'base64' ? b64dec(c.content) : b64dec((await ghApi('GET', ghRepoPath(GH) + '/git/blobs/' + c.sha)).content);
+      return {text, sha: c.sha, time: commits[0] ? Date.parse(commits[0].commit.committer.date) : 0};
+    }
+    // 一覧を作るときは通信しない（lastModified は text() を読んだ後に入る）
+    async getFile() {
+      const self = this, f = {lastModified: 0, text: async () => { const r = await self.fetchRemote(); self.sha = r.sha; self._text = r.text; f.lastModified = r.time; return r.text; }};
+      return f;
+    }
+    async createWritable() {
+      const self = this; let buf = '';
+      return {write: async t => { buf += t; }, close: async () => { await self.put(buf); }};
+    }
+    async put(text) {
+      if (this.sha && text === this._text) return;
+      const body = {message: 'スマホ ' + stamp() + ' ' + this.rel, content: b64enc(text), branch: GH.branch};
+      if (this.sha) body.sha = this.sha;
+      const j = await ghApi('PUT', ghRepoPath(GH) + '/contents/' + encPath(ghFull(this.rel)), body);
+      this.sha = j.content.sha; this._text = text;
+      ghStore.files.set(this.rel, this.sha); ghStore.pending.delete(this.rel);
+    }
+    async move(newName) {
+      const parent = this.rel.includes('/') ? this.rel.slice(0, this.rel.lastIndexOf('/')) : '';
+      const to = join(parent, newName), from = this.rel, oldSha = this.sha;
+      if (ghStore.files.has(to) || ghStore.pending.has(to)) throw new Error('同じ名前のファイルがもうあります');
+      this.rel = to; this.name = newName;
+      if (!oldSha) { ghStore.pending.delete(from); ghStore.pending.set(to, this); return; }
+      this.sha = null;
+      try { await this.put(this._text ?? ''); }
+      catch (e) { this.rel = from; this.name = from.split('/').pop(); this.sha = oldSha; throw e; }
+      await ghApi('DELETE', ghRepoPath(GH) + '/contents/' + encPath(ghFull(from)), {message: 'スマホ ' + stamp() + ' 名前変更 ' + from + ' → ' + to, sha: oldSha, branch: GH.branch});
+      ghStore.files.delete(from);
+    }
+  }
+  class GDir {
+    constructor(rel, name) { this.kind = 'directory'; this.rel = rel; this.name = name; }
+    async queryPermission() { return 'granted'; }
+    async requestPermission() { return 'granted'; }
+    async *entries() {
+      if (!this.rel) await ghStore.load();
+      for (const e of ghStore.children(this.rel))
+        yield [e.name, e.kind === 'file' ? (e.obj || new GFile(e.rel, e.sha)) : new GDir(e.rel, e.name)];
+    }
+    async getFileHandle(name, {create = false} = {}) {
+      const r = join(this.rel, name);
+      if (ghStore.files.has(r)) return new GFile(r, ghStore.files.get(r));
+      if (ghStore.pending.has(r)) return ghStore.pending.get(r);
+      if (ghStore.dirs.has(r) || ghStore.extraDirs.has(r)) { const e = new Error('フォルダです'); e.name = 'TypeMismatchError'; throw e; }
+      if (!create) { const e = new Error('ありません'); e.name = 'NotFoundError'; throw e; }
+      const f = new GFile(r, null); ghStore.pending.set(r, f);   // 最初に書いたときに GitHub に作る
+      return f;
+    }
+    async getDirectoryHandle(name, {create = false} = {}) {
+      const r = join(this.rel, name);
+      if (ghStore.dirs.has(r) || ghStore.extraDirs.has(r)) return new GDir(r, name);
+      if (ghStore.files.has(r)) { const e = new Error('ファイルです'); e.name = 'TypeMismatchError'; throw e; }
+      if (!create) { const e = new Error('ありません'); e.name = 'NotFoundError'; throw e; }
+      ghStore.extraDirs.add(r);   // git は空のフォルダを持てないので、中にファイルを作るまでは端末内だけ
+      return new GDir(r, name);
+    }
+    async removeEntry() { throw new Error('削除は PC のエクスプローラーで行ってください'); }
+    async resolve(h) {
+      const base = this.rel ? this.rel + '/' : '';
+      if (!h || typeof h.rel !== 'string' || !h.rel.startsWith(base)) return null;
+      return h.rel.slice(base.length).split('/');
+    }
+  }
+
+  function openGhDialog() {
+    const c = Object.assign({}, GH_DEFAULT, GH || lsGet(GH_KEY, {}));
+    $('ghRepo').value = c.repo; $('ghBranch').value = c.branch; $('ghRoot').value = c.root; $('ghToken').value = c.token;
+    $('ghMsg').textContent = '';
+    $('dlgGh').showModal();
+  }
+  async function saveGhSettings() {
+    const cfg = {repo: $('ghRepo').value.trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$|\/+$/g, ''), branch: $('ghBranch').value.trim() || 'master',
+      root: $('ghRoot').value.trim().replace(/^\/+|\/+$/g, ''), token: $('ghToken').value.trim()};
+    if (!/^[^/\s]+\/[^/\s]+$/.test(cfg.repo)) { $('ghMsg').textContent = 'リポジトリは「持ち主/名前」の形で入れてください'; return; }
+    if (!cfg.token) { $('ghMsg').textContent = 'トークンを入れてください'; return; }
+    $('ghMsg').textContent = '確認中…'; $('btnGhSave').disabled = true;
+    try {
+      await ghApi('GET', ghRepoPath(cfg) + '/branches/' + encodeURIComponent(cfg.branch), null, cfg);
+      lsSet(GH_KEY, cfg); GH = cfg;
+      ghStore.pending.clear(); ghStore.extraDirs.clear();
+      $('dlgGh').close();
+      await setDir(new GDir('', ghRootName()));
+      toast('GitHub につながりました');
+      if (!handle) openLastPath();
+    } catch (e) { $('ghMsg').textContent = e.message; }
+    finally { $('btnGhSave').disabled = false; }
+  }
+
+  let dir = null;             // 開いているフォルダ (FileSystemDirectoryHandle)
+  let handle = null;          // 開いているファイル (FileSystemFileHandle)
+  let parentDir = null;       // そのファイルが入っているフォルダ（名前変更に使う）
+  let pendingTitle = '';      // まだファイルになっていない原稿のタイトル
+  let creating = null;
+  let path = '無題.txt';      // 表示・履歴用のパス（フォルダ名/相対パス）
+  let savedText = '';         // 最後にファイルへ書いた内容
+  let saving = false, pendingSave = false;
+  let autosaveTimer = null, countTimer = null, previewTimer = null, findTimer = null;
+  let lastSnapTime = 0;
+
+  // ---------- 小物 ----------
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2600); };
+  const hhmm = d => d.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const setStatus = (text, cls) => { statusEl.textContent = text; statusEl.className = cls || ''; };
+  const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+  const isDirty = () => editor.value !== savedText;
+  const fmtDate = t => { const d = new Date(t), n = new Date(); return d.toDateString() === n.toDateString() ? d.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : d.toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'}); };
+
+  // ---------- IndexedDB（ファイル/フォルダの場所と履歴を覚える） ----------
+  const dbp = new Promise((res, rej) => {
+    if (!('indexedDB' in window)) return rej(new Error('no idb'));
+    const r = indexedDB.open('local-writer', 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      db.createObjectStore('kv');
+      const s = db.createObjectStore('snaps', {keyPath: 'id', autoIncrement: true});
+      s.createIndex('file', 'file');
+    };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  dbp.catch(() => {});
+  const tx = async (store, mode, fn) => { const db = await dbp; return new Promise((res, rej) => { const t = db.transaction(store, mode); const out = fn(t.objectStore(store)); t.oncomplete = () => res(out && 'result' in out ? out.result : undefined); t.onerror = () => rej(t.error); }); };
+  const kvGet = k => tx('kv', 'readonly', s => s.get(k)).catch(() => undefined);
+  const kvSet = (k, v) => ((SERVER || GHMODE) && (k === 'lastDir' || k === 'lastHandle')) ? Promise.resolve() : tx('kv', 'readwrite', s => { s.put(v, k); }).catch(() => {});
+
+  async function addSnapshot(force, text = editor.value, file = path) {
+    const now = Date.now();
+    if (!text.trim()) return;
+    if (!force && now - lastSnapTime < SNAP_INTERVAL_MS) return;
+    lastSnapTime = now;
+    try {
+      await tx('snaps', 'readwrite', s => { s.add({file, time: now, text}); });
+      const all = await listSnapshots(file);
+      if (all.length > SNAP_KEEP) await tx('snaps', 'readwrite', s => { all.slice(SNAP_KEEP).forEach(x => s.delete(x.id)); });
+    } catch {}
+  }
+  async function listSnapshots(file = path) {
+    try {
+      const rows = await tx('snaps', 'readonly', s => s.index('file').getAll(file));
+      return (rows || []).sort((a, b) => b.time - a.time);
+    } catch { return []; }
+  }
+
+  // ---------- 文字数 ----------
+  function updateCounts() {
+    const t = editor.value;
+    let n = 0; for (const _ of t) n++;
+    $('cAll').textContent = n.toLocaleString();
+    $('cNoSpace').textContent = t.replace(/\s/g, '').length.toLocaleString();
+    $('cLines').textContent = (t.split('\n').length).toLocaleString();
+  }
+  function updateSel() {
+    const len = editor.selectionEnd - editor.selectionStart;
+    $('selWrap').hidden = len <= 0;
+    if (len > 0) $('cSel').textContent = editor.value.slice(editor.selectionStart, editor.selectionEnd).replace(/\n/g, '').length.toLocaleString();
+  }
+
+  // ---------- プレビュー ----------
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function renderPreview() {
+    if (!$('main').classList.contains('split')) return;
+    preview.innerHTML = editor.value.split('\n').map(line => {
+      let h = esc(line);
+      h = h.replace(/《《([^《》]+?)》》/g, '<span class="boten">$1</span>');
+      h = h.replace(/[|｜]([^|｜《》]+?)《([^《》]+?)》/g, '<ruby>$1<rt>$2</rt></ruby>');
+      h = h.replace(/([一-鿿㐀-䶿々〆ヶ〇]+)《([^《》]+?)》/g, '<ruby>$1<rt>$2</rt></ruby>');
+      return '<p>' + (h || '<br>') + '</p>';
+    }).join('');
+  }
+
+  // ---------- 保存 ----------
+  const saveDraft = () => lsSet(DRAFT_KEY, {path, text: editor.value, title: pendingTitle, time: Date.now(), hasHandle: !!handle});
+
+  async function writeToHandle(text) {
+    if (await handle.queryPermission({mode: 'readwrite'}) !== 'granted') return 'needperm';
+    const w = await handle.createWritable();
+    await w.write(text);
+    await w.close();
+    return 'ok';
+  }
+
+  let draftTimer = null, conflicting = false;
+  async function doSave({manual = false} = {}) {
+    clearTimeout(autosaveTimer); autosaveTimer = null;
+    const draftOk = saveDraft();
+    if (conflicting) return;
+    if (GHMODE && !dir && manual) { openGhDialog(); return; }
+    if (!handle && !dir && manual && FS && !GHMODE) {
+      // フォルダ未選択で「保存」→ 前回のフォルダ（無ければ選択）を開いてから保存
+      const last = await kvGet('lastDir');
+      if (last) await reopenLastDir({openLast: false}); else await openDir();
+    }
+    if (!handle && dir) {
+      if (!editor.value.trim() && !pendingTitle.trim() && !manual) return;
+      await createForUntitled();
+    }
+    if (!handle) {
+      if (manual && !FS) return saveAs();
+      setStatus(!draftOk ? '一時保存に失敗' : GHMODE ? '端末内に一時保存中：「設定」で GitHub につなぐと保存されます' : 'ブラウザ内に一時保存中：左の「フォルダを開く」で保存先を選ぶと自動でファイルになります', draftOk ? 'warn' : 'err');
+      addSnapshot(false);
+      return;
+    }
+    if (saving) { pendingSave = true; return; }
+    saving = true;
+    const text = editor.value, h = handle;
+    let conflict = false;
+    setStatus(GHMODE ? 'GitHub に保存中…' : '保存中…', '');
+    try {
+      let r = await writeToHandle(text);
+      if (r === 'needperm' && manual && await h.requestPermission({mode: 'readwrite'}) === 'granted') r = await writeToHandle(text);
+      if (r === 'needperm') {
+        setStatus('書き込みの許可が必要です：「保存」を押してください', 'warn');
+      } else if (h === handle) {
+        savedText = text;
+        setStatus((isDirty() ? '未保存の変更あり（' : GHMODE ? 'GitHub に保存済み（' : '保存済み（') + hhmm(new Date()) + '）', isDirty() ? 'warn' : 'ok');
+        addSnapshot(manual);
+        if (manual) toast('保存しました');
+      }
+    } catch (e) {
+      if (e.name === 'ConflictError' && h === handle) conflict = true;
+      else setStatus('保存失敗：' + (e.message || e), 'err');
+    } finally {
+      saving = false;
+      if (conflict) { pendingSave = false; await resolveConflict(h, text); }
+      if (pendingSave) { pendingSave = false; doSave(); }
+    }
+  }
+
+  // スマホ版：保存しようとしたら GitHub 側（PC など）で書き換えられていた
+  async function resolveConflict(h, text) {
+    if (conflicting) return;
+    conflicting = true;
+    let overwrite = false;
+    try {
+      let r;
+      try { r = await h.fetchRemote(); }
+      catch (e) { if (e.name !== 'NotFoundError') throw e; r = null; }
+      if (!r) { h.sha = null; overwrite = true; return; }            // 向こうで消された → 作り直す
+      h.sha = r.sha; h._text = r.text;
+      if (r.text === text) { savedText = text; setStatus('GitHub に保存済み（' + hhmm(new Date()) + '）', 'ok'); return; }
+      if (confirm('「' + h.name + '」は別の端末（PC など）で書き換えられています。\n\nOK＝向こうの内容を読み込む（こちらの本文は「履歴」に残します）\nキャンセル＝こちらの内容で上書きする')) {
+        await addSnapshot(true, editor.value, path);
+        const top = editor.scrollTop;
+        loadText(r.text, path, h, parentDir); editor.scrollTop = top;
+        toast('向こうの内容を読み込みました（こちらの本文は「履歴」にあります）');
+      } else overwrite = true;
+    } catch (e) { setStatus('保存失敗：' + (e.message || e), 'err'); }
+    finally {
+      conflicting = false;
+      if (overwrite && h === handle) { savedText = '\u0000'; doSave(); }
+    }
+  }
+
+  // スマホ版：アプリに戻ってきたとき、開いている原稿が PC などで更新されていたら読み込み直す
+  async function checkRemoteCurrent() {
+    if (!GHMODE || !handle || !handle.sha || saving || conflicting) return;
+    const h = handle;
+    try {
+      const r = await h.fetchRemote();
+      if (h !== handle || r.sha === h.sha) return;
+      if (isDirty()) { await resolveConflict(h, editor.value); return; }
+      h.sha = r.sha; h._text = r.text;
+      const pos = editor.selectionStart, top = editor.scrollTop;
+      loadText(r.text, path, h, parentDir);
+      editor.setSelectionRange(Math.min(pos, r.text.length), Math.min(pos, r.text.length)); editor.scrollTop = top;
+      toast('ほかの端末での変更を読み込みました');
+    } catch {}
+  }
+
+  // ファイルを切り替える前に、今の本文を確実に書き出す
+  async function flushBeforeSwitch() {
+    if (handle && isDirty()) {
+      while (saving) await sleep(30);
+      await doSave();
+      while (saving) await sleep(30);
+    }
+    if (isDirty() && editor.value.trim()) {
+      return confirm('今の本文はファイルに保存されていません（ブラウザ内の履歴には残ります）。このまま切り替えますか？');
+    }
+    return true;
+  }
+
+  async function saveAs() {
+    if (FS) {
+      try {
+        const opts = {suggestedName: path.split('/').pop(), types: [{description: 'テキスト', accept: {'text/plain': ['.txt', '.md']}}]};
+        if (dir) opts.startIn = dir;
+        const h = await window.showSaveFilePicker(opts);
+        handle = h; path = await pathOf(h); await kvSet('lastHandle', h);
+        updateTitle(); savedText = '\u0000';
+        await doSave({manual: true});
+        if (dir) refreshList();
+      } catch (e) { if (e.name !== 'AbortError') setStatus('保存失敗：' + e.message, 'err'); }
+    } else {
+      const blob = new Blob([editor.value], {type: 'text/plain;charset=utf-8'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = path.split('/').pop(); a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      savedText = editor.value; saveDraft(); addSnapshot(true);
+      setStatus('ダウンロードで保存（' + hhmm(new Date()) + '）', 'ok');
+    }
+  }
+
+  // ---------- タイトル＝ファイル名 ----------
+  const sanitize = t => t.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '＿').replace(/[. ]+$/g, '').trim().slice(0, 120);
+  const extOf = name => ((name || '').match(TEXT_RE) || ['.txt'])[0];
+  const baseOf = name => (name || '').replace(TEXT_RE, '');
+  async function exists(d, name) { try { await d.getFileHandle(name); return true; } catch { return false; } }
+
+  // まだファイルが無い原稿を、開いているフォルダ（作成先）にタイトル名で作る
+  async function createForUntitled() {
+    if (creating) return creating;
+    creating = (async () => {
+      try {
+        const d = await dirAt(target);
+        const base = sanitize(pendingTitle) || '無題';
+        let name = base + '.txt', i = 2;
+        while (await exists(d, name)) name = base + ' (' + (i++) + ').txt';
+        const h = await d.getFileHandle(name, {create: true});
+        handle = h; parentDir = d; path = dir.name + '/' + target + name; pendingTitle = '';
+        savedText = '\u0000';
+        await kvSet('lastHandle', h);
+        updateTitle();
+        await refreshList();
+        toast('「' + target + name + '」として保存しました');
+      } catch (e) { setStatus('ファイルを作れませんでした：' + e.message, 'err'); }
+      finally { creating = null; }
+    })();
+    return creating;
+  }
+
+  async function commitTitle() {
+    const inp = $('titleInput');
+    const want = sanitize(inp.value);
+    if (!handle) {
+      pendingTitle = inp.value;
+      if (dir && want) { await doSave(); }
+      else updateTitle();
+      return;
+    }
+    if (!want) { inp.value = baseOf(handle.name); return; }
+    if (want === baseOf(handle.name)) { inp.value = want; return; }
+    if (!parentDir) { toast('フォルダを開いていないので、ファイル名は変えられません'); inp.value = baseOf(handle.name); return; }
+    const newName = want + extOf(handle.name), oldPath = path;
+    if (await exists(parentDir, newName)) { toast('「' + newName + '」はもうあります'); inp.value = baseOf(handle.name); return; }
+    try {
+      while (saving) await sleep(30);
+      if (isDirty()) { await doSave(); while (saving) await sleep(30); }
+      let moved = false;
+      if (typeof handle.move === 'function') { try { await handle.move(newName); moved = handle.name === newName; } catch {} }
+      if (!moved) {
+        const nh = await parentDir.getFileHandle(newName, {create: true});
+        const w = await nh.createWritable(); await w.write(editor.value); await w.close();
+        const oldName = handle.name;
+        handle = nh;
+        try { await parentDir.removeEntry(oldName); } catch {}
+      }
+      savedText = editor.value;
+      path = oldPath.slice(0, oldPath.lastIndexOf('/') + 1) + newName;
+      // 履歴も新しい名前に引き継ぐ
+      try { const rows = await listSnapshots(oldPath); await tx('snaps', 'readwrite', s => rows.forEach(r => { r.file = path; s.put(r); })); } catch {}
+      await kvSet('lastHandle', handle);
+      saveDraft(); updateTitle(); await refreshList();
+      setStatus('ファイル名を「' + newName + '」に変更しました', 'ok');
+    } catch (e) { setStatus('名前を変えられませんでした：' + e.message, 'err'); inp.value = baseOf(handle.name); }
+  }
+
+  $('titleInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); editor.focus(); }
+    if (e.key === 'Escape') { $('titleInput').value = handle ? baseOf(handle.name) : pendingTitle; editor.focus(); }
+  });
+  $('titleInput').addEventListener('change', commitTitle);
+  $('titleInput').addEventListener('input', () => { if (!handle) pendingTitle = $('titleInput').value; });
+
+  async function pathOf(h) {
+    if (dir) { try { const parts = await dir.resolve(h); if (parts) return [dir.name, ...parts].join('/'); } catch {} }
+    return h.name;
+  }
+
+  function updateTitle() {
+    const inp = $('titleInput');
+    if (document.activeElement !== inp) inp.value = handle ? baseOf(handle.name) : pendingTitle;
+    $('titleExt').textContent = handle ? extOf(handle.name) : '.txt';
+    $('fname').textContent = handle ? path : (dir ? '新しい原稿 → ' + dir.name + '/' + target : '新しい原稿（保存先フォルダ未選択）');
+    document.title = path.split('/').pop() + ' - ローカル執筆帳';
+    markCurrent();
+  }
+
+  function loadText(text, p, h, parent) {
+    handle = h || null; parentDir = parent || null; path = p; editor.value = text; savedText = h ? text : '';
+    if (!h) pendingTitle = '';
+    lastSnapTime = 0; updateTitle(); updateCounts(); renderPreview();
+    editor.scrollTop = 0; editor.setSelectionRange(0, 0); updateSel();
+    setStatus(h ? '開きました（自動保存 ON）' : (dir ? '書き始めると自動でファイルになります' : '保存先フォルダ未選択'), h ? 'ok' : 'warn');
+    saveDraft();
+    if ($('findbar').classList.contains('open')) refreshFind();
+  }
+
+  // ファイルを開く（前回の下書きの方が新しければ確認する）
+  async function openHandle(h) {
+    if (!await flushBeforeSwitch()) return;
+    try {
+      const file = await h.getFile();
+      const text = (await file.text()).replace(/\r\n?/g, '\n');
+      const p = await pathOf(h);
+      const draft = lsGet(DRAFT_KEY, null);
+      let use = text;
+      if (draft && draft.path === p && draft.hasHandle && draft.text !== text && draft.text.trim() && draft.time > file.lastModified + 1000) {
+        if (confirm('ブラウザ内の下書き（' + new Date(draft.time).toLocaleString('ja-JP') + '）の方が、ファイル（' + new Date(file.lastModified).toLocaleString('ja-JP') + '）より新しいです。\n\nOK＝下書きを使ってファイルに上書き\nキャンセル＝ファイルの中身を使う（下書きは履歴に残します）')) use = draft.text;
+        else await addSnapshot(true, draft.text, p);
+      }
+      const hit = listCache.find(x => x.path === p);
+      loadText(use, p, h, hit ? hit.parent : null);
+      if (use !== text) { savedText = text; await doSave(); }
+      await kvSet('lastHandle', h);
+      $('btnReopen').hidden = true;
+      revealCurrent();
+      if (window.innerWidth < 760) showSide(false);
+    } catch (e) { setStatus('開けませんでした：' + e.message, 'err'); }
+  }
+
+  async function openFile() {
+    if (SERVER || GHMODE) { toast('左の一覧から開いてください'); return; }
+    if (!FS) { if (await flushBeforeSwitch()) $('fileInput').click(); return; }
+    try {
+      const opts = {types: [{description: 'テキスト', accept: {'text/plain': ['.txt', '.md']}}]};
+      if (dir) opts.startIn = dir;
+      const [h] = await window.showOpenFilePicker(opts);
+      await openHandle(h);
+    } catch (e) { if (e.name !== 'AbortError') setStatus('開けませんでした：' + e.message, 'err'); }
+  }
+
+  async function ensurePerm(h) {
+    if (await h.queryPermission({mode: 'readwrite'}) === 'granted') return true;
+    return await h.requestPermission({mode: 'readwrite'}) === 'granted';
+  }
+
+  async function reopenLastFile() {
+    const h = await kvGet('lastHandle'); if (!h) return;
+    try {
+      if (!await ensurePerm(h)) { setStatus('アクセスが許可されませんでした', 'warn'); return; }
+      await openHandle(h);
+    } catch (e) { setStatus('前回のファイルを開けませんでした：' + e.message, 'err'); }
+  }
+
+  // ---------- フォルダ・ファイル一覧（左のバー） ----------
+  let tree = null;            // {kind:'dir', name, rel, handle, children}
+  let listCache = [];         // ファイルだけの平らな一覧
+  let target = '';            // 新規作成先のフォルダ（相対パス、'' はルート）
+  const collapsedKey = () => 'lw_collapsed:' + (dir ? dir.name : '');
+  let collapsed = new Set();
+
+  async function setDir(d) {
+    dir = d; await kvSet('lastDir', d);
+    $('dirName').textContent = '📂 ' + d.name; $('dirName').title = d.name + '（クリックでここを新規作成先に）';
+    $('btnReopenDir').hidden = true;
+    collapsed = new Set(lsGet(collapsedKey(), []));
+    target = '';
+    showSide(true);
+    await refreshList();
+    if (!handle) { updateTitle(); if (editor.value.trim()) doSave(); }
+  }
+
+  async function openDir() {
+    if (!('showDirectoryPicker' in window)) { toast('このブラウザではフォルダを開けません（Chrome / Edge を使ってください）'); return; }
+    try {
+      const d = await window.showDirectoryPicker({mode: 'readwrite', id: 'lw-dir'});
+      await setDir(d);
+    } catch (e) { if (e.name !== 'AbortError') setStatus('フォルダを開けませんでした：' + e.message, 'err'); }
+  }
+
+  async function reopenLastDir({openLast = true} = {}) {
+    const d = await kvGet('lastDir'); if (!d) return;
+    try {
+      if (!await ensurePerm(d)) { setStatus('フォルダへのアクセスが許可されませんでした', 'warn'); return; }
+      await setDir(d);
+      if (!openLast) return;
+      const lastPath = lsGet('lw_lastPath', null);
+      const hit = lastPath && listCache.find(x => x.path === lastPath);
+      if (hit) await openHandle(hit.handle);
+    } catch (e) { setStatus('前回のフォルダを開けませんでした：' + e.message, 'err'); }
+  }
+
+  async function readDir(d, rel, depth) {
+    const node = {kind: 'dir', name: d.name, rel, handle: d, children: [], count: 0};
+    const files = [], dirs = [];
+    for await (const [name, h] of d.entries()) {
+      if (name.startsWith('.') || name.startsWith('$')) continue;
+      if (h.kind === 'file' && TEXT_RE.test(name)) files.push([name, h]);
+      else if (h.kind === 'directory' && depth < 6) dirs.push([name, h]);
+    }
+    const cmp = (a, b) => a[0].localeCompare(b[0], 'ja', {numeric: true});
+    dirs.sort(cmp); files.sort(cmp);
+    for (const [name, h] of dirs) {
+      const child = await readDir(h, rel + name + '/', depth + 1);
+      node.children.push(child); node.count += child.count;
+    }
+    for (const [name, h] of files) {
+      let mt = 0; try { mt = (await h.getFile()).lastModified; } catch {}
+      const it = {kind: 'file', name, rel: rel + name, path: dir.name + '/' + rel + name, handle: h, time: mt, parent: d};
+      node.children.push(it); listCache.push(it); node.count++;
+    }
+    return node;
+  }
+
+  function renderEmptySide() {
+    const box = $('fileList'); box.innerHTML = '';
+    const wrap = document.createElement('div'); wrap.className = 'side-empty';
+    if (ON_WEB) {
+      wrap.textContent = '「設定」で GitHub につなぐと、原稿がここに並びます。';
+      const b = document.createElement('button'); b.className = 'primary'; b.textContent = '設定'; b.onclick = openGhDialog;
+      wrap.appendChild(b); box.appendChild(wrap);
+      $('dirName').textContent = '未接続'; $('sideFoot').textContent = '';
+      return;
+    }
+    wrap.textContent = '原稿を入れるフォルダを開くと、中の .txt / .md がここに並びます。サブフォルダは階層で表示されます。';
+    const b1 = document.createElement('button'); b1.className = 'primary'; b1.textContent = 'フォルダを開く'; b1.onclick = openDir;
+    wrap.appendChild(b1);
+    kvGet('lastDir').then(d => {
+      if (!d || dir) return;
+      const b2 = document.createElement('button'); b2.textContent = '前回のフォルダ（' + d.name + '）'; b2.onclick = () => reopenLastDir();
+      wrap.appendChild(b2);
+    });
+    box.appendChild(wrap);
+    $('dirName').textContent = 'フォルダ未選択';
+    $('sideFoot').textContent = '';
+  }
+
+  function renderTree() {
+    const box = $('fileList'); box.innerHTML = '';
+    if (!tree) return renderEmptySide();
+    const walk = (node, depth) => {
+      for (const it of node.children) {
+        const el = document.createElement('div');
+        el.style.paddingLeft = (8 + depth * 14) + 'px';
+        const tw = document.createElement('span'); tw.className = 'tw';
+        const ic = document.createElement('span'); ic.className = 'ic';
+        const nm = document.createElement('span'); nm.className = 'nm';
+        const dt = document.createElement('span'); dt.className = 'dt';
+        if (it.kind === 'dir') {
+          const closed = collapsed.has(it.rel);
+          el.className = 'row dir' + (target === it.rel ? ' target' : '');
+          tw.textContent = closed ? '▶' : '▼';
+          ic.textContent = closed ? '📁' : '📂';
+          nm.textContent = it.name; dt.textContent = it.count ? it.count : '';
+          el.title = it.rel + '（クリックで開閉・新規作成先に）';
+          el.onclick = () => {
+            if (collapsed.has(it.rel)) collapsed.delete(it.rel); else collapsed.add(it.rel);
+            lsSet(collapsedKey(), [...collapsed]);
+            target = it.rel; renderTree(); if (!handle) updateTitle();
+          };
+          el.append(tw, ic, nm, dt); box.appendChild(el);
+          if (!closed) walk(it, depth + 1);
+        } else {
+          el.className = 'row file'; el.dataset.path = it.path; el.title = it.rel;
+          ic.textContent = '📄';
+          nm.textContent = it.name.replace(/\.txt$/i, '');
+          dt.textContent = it.time ? fmtDate(it.time) : '';
+          el.onclick = () => { if (it.path !== path || !handle) openHandle(it.handle); };
+          el.append(tw, ic, nm, dt); box.appendChild(el);
+        }
+      }
+    };
+    walk(tree, 0);
+    if (!tree.children.length) {
+      const e = document.createElement('div'); e.className = 'side-empty';
+      e.textContent = 'まだファイルがありません。上の「＋ファイル」で作れます。';
+      box.appendChild(e);
+    }
+    $('dirName').parentElement.classList.toggle('rootTarget', target === '');
+    $('sideFoot').textContent = '新規の作成先：' + dir.name + '/' + target;
+    markCurrent();
+  }
+
+  async function refreshList() {
+    if (!dir) { tree = null; return renderEmptySide(); }
+    try {
+      listCache = [];
+      tree = await readDir(dir, '', 0);
+      renderTree();
+    } catch (e) { $('fileList').innerHTML = '<div class="side-empty">一覧を読めませんでした：' + esc(String(e.message || e)) + '</div>'; }
+  }
+
+  function markCurrent() {
+    let found = null;
+    document.querySelectorAll('.row.file').forEach(el => { const on = !!handle && el.dataset.path === path; el.classList.toggle('current', on); if (on) found = el; });
+    if (handle && dir && path.startsWith(dir.name + '/')) lsSet('lw_lastPath', path);
+    if (found) found.scrollIntoView({block: 'nearest'});
+  }
+
+  // 開いたファイルのフォルダを展開して、新規作成先にする
+  function revealCurrent() {
+    if (!dir || !handle || !path.startsWith(dir.name + '/')) return;
+    const rel = path.slice(dir.name.length + 1);
+    const parts = rel.split('/').slice(0, -1);
+    let acc = '', changed = false;
+    for (const p of parts) { acc += p + '/'; if (collapsed.delete(acc)) changed = true; }
+    if (changed) lsSet(collapsedKey(), [...collapsed]);
+    target = acc;
+    renderTree();
+  }
+
+  async function dirAt(rel) {
+    let d = dir;
+    for (const p of rel.split('/').filter(Boolean)) d = await d.getDirectoryHandle(p, {create: true});
+    return d;
+  }
+  const badName = p => /[<>:"|?*]/.test(p) || p === '.' || p === '..';
+
+  // 新規：ダイアログは出さず、白紙＋タイトル欄にカーソル。書き始めるかタイトルを入れた時点でファイルになる
+  async function newFileInDir() {
+    if (!await flushBeforeSwitch()) return;
+    loadText('', dir ? dir.name + '/' + target : '無題.txt', null);
+    if (window.innerWidth < 760) showSide(false);
+    $('titleInput').value = ''; $('titleInput').focus();
+    renderTree();
+  }
+
+  async function newFolder() {
+    if (!dir) { openDir(); return; }
+    let name = prompt('新しいフォルダの名前\n作成先：' + dir.name + '/' + target, '第1章');
+    if (!name) return;
+    name = name.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    const parts = name.split('/').filter(Boolean);
+    if (!parts.length) return;
+    if (parts.some(badName)) { toast('フォルダ名に使えない文字が入っています'); return; }
+    try {
+      await dirAt(target + parts.join('/'));
+      target = target + parts.join('/') + '/';
+      let acc = ''; for (const p of target.split('/').filter(Boolean)) { acc += p + '/'; collapsed.delete(acc); }
+      lsSet(collapsedKey(), [...collapsed]);
+      await refreshList();
+      toast('フォルダ「' + target + '」を作りました');
+    } catch (e) { setStatus('作れませんでした：' + e.message, 'err'); }
+  }
+
+  const newUntitled = newFileInDir;
+
+  function showSide(on) {
+    $('side').hidden = !on;
+    $('resizer').classList.toggle('off', !on);
+    $('main').classList.toggle('withside', on);
+    $('btnSide').setAttribute('aria-pressed', on);
+    settings.sideOff = !on; lsSet(SETTINGS_KEY, settings);
+  }
+
+  // バーの幅をドラッグで変える
+  (() => {
+    const r = $('resizer'); let startX = 0, startW = 0;
+    const move = e => { const w = Math.min(window.innerWidth * 0.6, Math.max(170, startW + e.clientX - startX)); document.documentElement.style.setProperty('--side-w', w + 'px'); };
+    const up = () => { r.classList.remove('drag'); document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.body.style.userSelect = ''; settings.sideW = $('side').offsetWidth; lsSet(SETTINGS_KEY, settings); };
+    r.addEventListener('pointerdown', e => { startX = e.clientX; startW = $('side').offsetWidth; r.classList.add('drag'); document.body.style.userSelect = 'none'; document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); });
+  })();
+
+  // 別のアプリでファイルを足したときのため、画面に戻ったら一覧を更新
+  let focusTimer = null;
+  window.addEventListener('focus', () => { if (!dir || GHMODE) return; clearTimeout(focusTimer); focusTimer = setTimeout(() => { refreshList(); maybeSync(); }, 300); });
+  setInterval(maybeSync, 60 * 1000);
+
+  // ---------- 検索・置換 ----------
+  let matches = [], cur = -1;
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function buildRe() {
+    const q = $('findInput').value;
+    $('findInput').classList.remove('bad');
+    if (!q) return null;
+    try {
+      return new RegExp($('optRegex').checked ? q : escRe(q), 'g' + ($('optCase').checked ? '' : 'i'));
+    } catch { $('findInput').classList.add('bad'); return null; }
+  }
+  function computeMatches() {
+    matches = [];
+    const re = buildRe(); if (!re) return;
+    const t = editor.value; let m;
+    while ((m = re.exec(t)) && matches.length < 20000) {
+      if (m[0].length === 0) { re.lastIndex++; continue; }
+      matches.push([m.index, m.index + m[0].length]);
+    }
+  }
+  function showCount() {
+    const q = $('findInput').value;
+    $('findCount').textContent = !q ? '' : $('findInput').classList.contains('bad') ? '正規表現が不正' : matches.length ? (cur >= 0 ? (cur + 1) + ' / ' : '') + matches.length + '件' : '見つかりません';
+  }
+  function refreshFind() {
+    computeMatches();
+    const s = editor.selectionStart, e = editor.selectionEnd;
+    cur = matches.findIndex(m => m[0] === s && m[1] === e);
+    showCount();
+  }
+
+  function scrollToIndex(i) {
+    const cs = getComputedStyle(editor);
+    const m = document.createElement('div');
+    for (const p of ['fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingLeft', 'paddingRight', 'tabSize', 'wordBreak', 'fontFeatureSettings'])
+      m.style[p] = cs[p];
+    Object.assign(m.style, {position: 'absolute', visibility: 'hidden', top: '0', left: '-99999px', boxSizing: 'border-box',
+      width: editor.clientWidth + 'px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', border: '0'});
+    m.textContent = editor.value.slice(0, i);
+    const mark = document.createElement('span'); mark.textContent = '​'; m.appendChild(mark);
+    document.body.appendChild(m);
+    const top = mark.offsetTop; m.remove();
+    if (top < editor.scrollTop + 20 || top > editor.scrollTop + editor.clientHeight - 60)
+      editor.scrollTop = Math.max(0, top - editor.clientHeight / 3);
+  }
+
+  function goto(i) {
+    if (!matches.length) { cur = -1; showCount(); return; }
+    cur = (i + matches.length) % matches.length;
+    const [s, e] = matches[cur];
+    editor.setSelectionRange(s, e);
+    scrollToIndex(s);
+    showCount(); updateSel();
+  }
+  function findNext(dirn = 1) {
+    computeMatches();
+    if (!matches.length) { cur = -1; showCount(); return; }
+    const s = editor.selectionStart, e = editor.selectionEnd;
+    const at = matches.findIndex(m => m[0] === s && m[1] === e);
+    if (at >= 0) return goto(at + dirn);
+    if (dirn > 0) { const k = matches.findIndex(m => m[0] >= e); goto(k < 0 ? 0 : k); }
+    else { let k = -1; matches.forEach((m, j) => { if (m[1] <= s) k = j; }); goto(k < 0 ? matches.length - 1 : k); }
+  }
+
+  // $& $1..$99 $$ を展開（正規表現モードのみ）
+  function expand(rep, m) {
+    return rep.replace(/\$(\$|&|\d{1,2})/g, (all, g) => {
+      if (g === '$') return '$';
+      if (g === '&') return m[0];
+      const n = +g; return n < m.length ? (m[n] ?? '') : all;
+    });
+  }
+  function replaceRange(s, e, text) {
+    editor.focus();
+    editor.setSelectionRange(s, e);
+    const ok = text === '' ? document.execCommand('delete') : document.execCommand('insertText', false, text);
+    if (!ok) { editor.setRangeText(text, s, e, 'end'); editor.dispatchEvent(new Event('input')); }
+  }
+  function replaceOne() {
+    computeMatches();
+    const s = editor.selectionStart, e = editor.selectionEnd;
+    const at = matches.findIndex(m => m[0] === s && m[1] === e);
+    if (at < 0) { findNext(1); return; }
+    const re = buildRe(); if (!re) return;
+    const sticky = new RegExp(re.source, re.flags.replace('g', '') + 'y');
+    sticky.lastIndex = s;
+    const m = sticky.exec(editor.value); if (!m) { findNext(1); return; }
+    const rep = $('optRegex').checked ? expand($('replInput').value, m) : $('replInput').value;
+    replaceRange(s, e, rep);
+    $('replInput').focus();
+    computeMatches();
+    const k = matches.findIndex(x => x[0] >= s + rep.length);
+    if (matches.length) goto(k < 0 ? 0 : k); else { cur = -1; showCount(); }
+  }
+  async function replaceAll() {
+    const re = buildRe(); if (!re) return;
+    const before = editor.value;
+    let n = 0;
+    const rep = $('replInput').value, rx = $('optRegex').checked;
+    const after = before.replace(re, (...args) => {
+      const m0 = args[0];
+      if (m0.length === 0) return m0;
+      n++;
+      if (!rx) return rep;
+      const hasGroups = typeof args[args.length - 1] === 'object';
+      const groups = args.slice(0, args.length - (hasGroups ? 3 : 2));
+      return expand(rep, groups);
+    });
+    if (!n) { toast('見つかりません'); return; }
+    await addSnapshot(true, before);
+    const top = editor.scrollTop;
+    replaceRange(0, before.length, after);
+    editor.setSelectionRange(0, 0); editor.scrollTop = top;
+    refreshFind();
+    toast(n.toLocaleString() + '件置換しました（Ctrl+Z で戻せます）');
+  }
+
+  function openFind(focusRepl) {
+    $('findbar').classList.add('open');
+    const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+    if (sel && !sel.includes('\n') && sel.length < 200) $('findInput').value = sel;
+    const target = focusRepl && $('findInput').value ? $('replInput') : $('findInput');
+    target.focus(); target.select();
+    refreshFind();
+  }
+  function closeFind() { $('findbar').classList.remove('open'); editor.focus(); }
+
+  $('findInput').addEventListener('input', () => { clearTimeout(findTimer); findTimer = setTimeout(() => { computeMatches(); cur = -1; if (matches.length) { const e = editor.selectionStart; const k = matches.findIndex(m => m[0] >= e); goto(k < 0 ? 0 : k); } else showCount(); $('findInput').focus(); }, 150); });
+  $('findInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); findNext(e.shiftKey ? -1 : 1); $('findInput').focus(); } });
+  $('replInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (e.ctrlKey || e.metaKey) replaceAll(); else replaceOne(); } });
+  ['optCase', 'optRegex'].forEach(id => $(id).addEventListener('change', refreshFind));
+  $('btnNext').onclick = () => findNext(1);
+  $('btnPrev').onclick = () => findNext(-1);
+  $('btnReplOne').onclick = replaceOne;
+  $('btnReplAll').onclick = replaceAll;
+  $('btnCloseFind').onclick = closeFind;
+  $('btnFind').onclick = () => $('findbar').classList.contains('open') ? closeFind() : openFind(false);
+
+  // ---------- イベント ----------
+  editor.addEventListener('input', () => {
+    clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, DRAFT_MS);
+    if (!autosaveTimer) {
+      const m = autosaveMin();
+      if (m > 0) autosaveTimer = setTimeout(() => { autosaveTimer = null; if (isDirty()) doSave(); }, m * 60 * 1000);
+      setStatus(m > 0 ? '未保存の変更あり（' + m + '分後に' + (GHMODE ? 'GitHub へ' : '') + '自動保存）' : '未保存の変更あり（「保存」で保存）', 'warn');
+    }
+    clearTimeout(countTimer); countTimer = setTimeout(updateCounts, 250);
+    clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 400);
+    if ($('findbar').classList.contains('open')) { clearTimeout(findTimer); findTimer = setTimeout(refreshFind, 300); }
+  });
+  document.addEventListener('selectionchange', () => { if (document.activeElement === editor) updateSel(); });
+
+  $('fileInput').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    loadText(await f.text(), f.name, null); e.target.value = '';
+  });
+  $('btnNew').onclick = newFileInDir;
+  $('btnNewInDir').onclick = newFileInDir;
+  $('btnNewDir').onclick = newFolder;
+  $('dirName').onclick = () => { if (dir) { target = ''; renderTree(); if (!handle) updateTitle(); } };
+  $('btnRefresh').onclick = refreshList;
+  $('btnOpenDir').onclick = openDir;
+  $('btnReopenDir').onclick = () => reopenLastDir();
+  $('btnOpen').onclick = openFile;
+  $('btnReopen').onclick = reopenLastFile;
+  $('btnSave').onclick = () => doSave({manual: true});
+  $('btnSaveAs').onclick = saveAs;
+
+  // ---------- GitHub と同期（PC：保存係がコミット＆プッシュし、スマホでの変更を取り込む） ----------
+  const PC_SYNC_EVERY_MS = 10 * 60 * 1000;   // GitHub との同期は10分に1回まで（ディスクへの保存はすぐ）
+  let pushing = false, lastSync = 0;
+
+  // 取り込んだ変更を画面に反映する
+  async function afterSync(r) {
+    lastSync = Date.now();
+    const up = r.updated || [], copies = r.copies || [];
+    if (!up.length && !copies.length) return;
+    await refreshList();
+    if (handle && up.includes(path)) {
+      if (isDirty()) await addSnapshot(true);
+      const pos = editor.selectionStart, top = editor.scrollTop, h = handle;
+      try {
+        const t = (await (await h.getFile()).text()).replace(/\r\n?/g, '\n');
+        loadText(t, path, h, parentDir);
+        editor.setSelectionRange(Math.min(pos, t.length), Math.min(pos, t.length)); editor.scrollTop = top;
+        toast('スマホでの変更を読み込みました');
+      } catch (e) {
+        if (e.name !== 'NotFoundError') throw e;
+        await addSnapshot(true);
+        loadText('', dir.name + '/' + target, null);
+        toast('開いていた原稿はスマホで名前変更か削除されました（本文は「履歴」に残しています）');
+      }
+    }
+    if (copies.length) alert('PC とスマホの両方で同じ原稿が書き換えられていたので、スマホ側の内容を別のファイルに分けて残しました：\n\n' + copies.join('\n'));
+  }
+
+  // 画面に戻ったときや数分おきに、こっそり同期する
+  async function maybeSync() {
+    if (!SERVER || SERVER.version < 3 || pushing || document.hidden || Date.now() - lastSync < PC_SYNC_EVERY_MS) return;
+    pushing = true;
+    try {
+      if (isDirty() && handle) { while (saving) await sleep(30); await doSave(); }
+      while (saving || creating) await sleep(30);
+      const r = await api('sync');
+      if (r.needRepo) return;
+      await afterSync(r);
+    } catch (e) { lastSync = Date.now(); setStatus('GitHub と同期できませんでした：' + String(e.message || e).split('\n').pop().slice(0, 80), 'warn'); }
+    finally { pushing = false; }
+  }
+  async function pushToGitHub() {
+    if (!SERVER || pushing) return;
+    if (SERVER.version < 2) { alert('保存係（黒いウィンドウ）が古いままです。\n「起動.bat」をもう一度ダブルクリックしてください（古い保存係は自動で入れ替わります）。'); return; }
+    pushing = true;
+    const btn = $('btnPush'); btn.disabled = true; btn.textContent = '送信中…';
+    try {
+      // まず今の本文を確実に保存
+      if (isDirty() || !handle) { while (saving) await sleep(30); await doSave(); while (saving || creating) await sleep(30); }
+      setStatus('GitHub に送信中…', '');
+      const r = await api(SERVER.version >= 3 ? 'sync' : 'gitpush');
+      if (r.needRepo) {
+        setStatus('GitHub に LocalWriter リポジトリがまだありません', 'warn');
+        if (confirm('GitHub に「LocalWriter」リポジトリがまだありません。\n作成ページを開くので、そのまま「Create repository」を押してください（README などは付けずに）。\n作ったあと、もう一度「GitHubへ送る」を押せば送れます。')) window.open(r.newRepoUrl, '_blank');
+        return;
+      }
+      const t = hhmm(new Date());
+      await afterSync(r);
+      if ((r.updated || []).length) setStatus('同期しました：スマホでの変更 ' + r.updated.length + 'ファイルを取り込み（' + t + '）', 'ok');
+      else if (r.changed > 0) { setStatus('GitHub に送りました（' + r.changed + 'ファイル・' + t + '）', 'ok'); toast('コミット＆プッシュしました：' + r.changed + 'ファイル'); }
+      else { setStatus('変更なし・GitHub は最新です（' + t + '）', 'ok'); toast('新しい変更はありませんでした（プッシュ済み）'); }
+    } catch (e) {
+      setStatus('GitHub 送信失敗：' + e.message.split('\n').slice(-3).join(' / '), 'err');
+      alert('GitHub への送信に失敗しました。\n\n' + e.message.slice(-1500));
+    } finally {
+      pushing = false; btn.disabled = false; btn.textContent = '同期';
+    }
+  }
+  $('btnPush').onclick = pushToGitHub;
+  $('btnSide').onclick = () => showSide($('side').hidden);
+
+  document.addEventListener('keydown', e => {
+    const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    if (mod && k === 's') { e.preventDefault(); if (e.shiftKey) saveAs(); else doSave({manual: true}); }
+    else if (mod && k === 'o') { e.preventDefault(); openFile(); }
+    else if (mod && k === 'f') { e.preventDefault(); openFind(false); }
+    else if (mod && k === 'h') { e.preventDefault(); openFind(true); }
+    else if (e.key === 'F3') { e.preventDefault(); if (!$('findbar').classList.contains('open')) openFind(false); else findNext(e.shiftKey ? -1 : 1); }
+    else if (e.key === 'Escape' && $('findbar').classList.contains('open') && !$('dlgHistory').open) { e.preventDefault(); closeFind(); }
+  });
+
+  window.addEventListener('beforeunload', e => {
+    saveDraft();
+    if (isDirty() && editor.value.trim()) { e.preventDefault(); e.returnValue = ''; }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (isDirty()) doSave(); }
+    else if (GHMODE && dir && Date.now() - ghLastCheck > GH_RECHECK_MS) { ghLastCheck = Date.now(); refreshList(); checkRemoteCurrent(); }
+    else if (SERVER) maybeSync();
+  });
+  // スマホ：一覧（引き出し）の外をさわったら閉じる
+  $('editWrap').addEventListener('pointerdown', () => { if (window.innerWidth < 760 && !$('side').hidden) showSide(false); });
+
+  // ---------- 表示設定 ----------
+  const settings = Object.assign({size: 17, preview: false, vertical: false, sideOff: false, sideW: 260, cols: 40}, lsGet(SETTINGS_KEY, {}));
+  const autosaveMin = () => settings.autosaveMin ?? (GHMODE ? 10 : 5);
+  $('autosaveSel').addEventListener('change', e => {
+    settings.autosaveMin = +e.target.value; lsSet(SETTINGS_KEY, settings);
+    clearTimeout(autosaveTimer); autosaveTimer = null;
+    const m = autosaveMin();
+    if (isDirty() && m > 0) autosaveTimer = setTimeout(() => { autosaveTimer = null; if (isDirty()) doSave(); }, m * 60 * 1000);
+    toast(m > 0 ? '変更してから' + m + '分後に自動保存します' : '自動保存しません（「保存」ボタンか Ctrl+S で保存）');
+  });
+  function applySettings() {
+    document.documentElement.style.setProperty('--font-size', settings.size + 'px');
+    const full = settings.cols >= 81;
+    document.documentElement.style.setProperty('--colw', full ? '100%' : 'calc(var(--font-size) * ' + (settings.cols + 1) + ')');
+    $('colRange').value = settings.cols;
+    $('colLabel').textContent = full ? '全幅' : settings.cols + '字';
+    $('autosaveSel').value = String(autosaveMin());
+    $('main').classList.toggle('split', settings.preview);
+    $('btnPreview').setAttribute('aria-pressed', settings.preview);
+    preview.classList.toggle('vertical', settings.vertical);
+    $('btnVertical').setAttribute('aria-pressed', settings.vertical);
+    $('btnVertical').disabled = !settings.preview;
+    lsSet(SETTINGS_KEY, settings); renderPreview();
+  }
+  $('btnPreview').onclick = () => { settings.preview = !settings.preview; applySettings(); };
+  $('btnVertical').onclick = () => { settings.vertical = !settings.vertical; applySettings(); };
+  $('btnSmaller').onclick = () => { settings.size = Math.max(12, settings.size - 1); applySettings(); };
+  $('colRange').addEventListener('input', e => { settings.cols = +e.target.value; applySettings(); });
+  $('btnLarger').onclick = () => { settings.size = Math.min(32, settings.size + 1); applySettings(); };
+
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    $('btnTheme').textContent = t === 'dark' ? 'ライト' : 'ダーク';
+    try { localStorage.setItem(THEME_KEY, t); } catch {}
+  }
+  $('btnTheme').onclick = () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+
+  // ---------- 履歴 ----------
+  $('btnHistory').onclick = async () => {
+    const list = $('snapList'); list.innerHTML = '';
+    const snaps = await listSnapshots();
+    if (!snaps.length) list.innerHTML = '<p class="note">このファイルの履歴はまだありません。</p>';
+    snaps.forEach(s => {
+      const row = document.createElement('div'); row.className = 'snap';
+      const first = s.text.split('\n').find(l => l.trim()) || '';
+      row.innerHTML = '<div class="meta"><div>' + new Date(s.time).toLocaleString('ja-JP') + '　' + s.text.replace(/\s/g, '').length.toLocaleString() + '字</div><div class="preview-line"></div></div>';
+      row.querySelector('.preview-line').textContent = first;
+      const b = document.createElement('button'); b.textContent = '復元';
+      b.onclick = async () => {
+        if (!confirm('この版に戻しますか？（今の本文は履歴に残します）')) return;
+        await addSnapshot(true);
+        replaceRange(0, editor.value.length, s.text);
+        editor.setSelectionRange(0, 0); editor.scrollTop = 0;
+        $('dlgHistory').close(); toast('復元しました（Ctrl+Z で戻せます）');
+      };
+      row.appendChild(b); list.appendChild(row);
+    });
+    $('dlgHistory').showModal();
+  };
+  $('btnCloseHistory').onclick = () => $('dlgHistory').close();
+
+  async function openLastPath() {
+    const lastPath = lsGet('lw_lastPath', null);
+    const hit = lastPath && listCache.find(x => x.path === lastPath);
+    if (hit) await openHandle(hit.handle); else { updateTitle(); setStatus('準備OK', 'ok'); }
+  }
+  $('btnGhSettings').onclick = openGhDialog;
+  $('btnGhSave').onclick = saveGhSettings;
+  $('btnCloseGh').onclick = () => $('dlgGh').close();
+
+  // ---------- 起動 ----------
+  (async () => {
+    applyTheme(document.documentElement.dataset.theme || 'dark');
+    applySettings();
+    document.documentElement.style.setProperty('--side-w', (settings.sideW || 260) + 'px');
+    showSide(!settings.sideOff);
+    renderEmptySide();
+    const draft = lsGet(DRAFT_KEY, null);
+    SERVER = await detectServer();
+    let autoOpened = false;
+    if (SERVER) {
+      for (const id of ['btnOpenDir', 'btnReopenDir', 'btnOpen', 'btnReopen', 'btnSaveAs']) $(id).hidden = true;
+      $('btnPush').hidden = false; $('btnPush').classList.add('primary');
+      $('btnOpenDir').style.display = $('btnOpen').style.display = $('btnSaveAs').style.display = 'none';
+      await setDir(new SDir('', SERVER.root));
+      $('dirName').title = SERVER.full;
+      if (SERVER.version < 2) toast('保存係が古いままです：「起動.bat」をもう一度実行してください');
+      autoOpened = true;
+    } else if (ON_WEB) {
+      GHMODE = true;
+      for (const id of ['btnOpenDir', 'btnReopenDir', 'btnOpen', 'btnReopen', 'btnSaveAs']) { $(id).hidden = true; $(id).style.display = 'none'; }
+      $('btnGhSettings').hidden = false;
+      $('autosaveSel').value = String(autosaveMin());
+      GH = lsGet(GH_KEY, null);
+      if (GH && GH.token) { await setDir(new GDir('', ghRootName())); autoOpened = true; }
+    }
+    const lastDir = (FS && !SERVER && !GHMODE) ? await kvGet('lastDir') : null;
+    const lastFile = (FS && !SERVER && !GHMODE) ? await kvGet('lastHandle') : null;
+    if (lastDir) { try { if (await lastDir.queryPermission({mode: 'readwrite'}) === 'granted') { await setDir(lastDir); autoOpened = true; } } catch {} }
+    if (lastDir && !autoOpened) { $('btnReopenDir').hidden = false; $('btnReopenDir').textContent = '前回のフォルダ（' + lastDir.name + '）'; }
+    else if (lastFile) { $('btnReopen').hidden = false; }
+    if (draft && draft.text && !draft.hasHandle) {
+      editor.value = draft.text; savedText = ''; pendingTitle = draft.title || '';
+      updateTitle(); updateCounts(); renderPreview();
+      setStatus('保存前の下書きを復元しました（' + new Date(draft.time).toLocaleString('ja-JP') + '）', 'warn');
+      if (dir) doSave();
+    } else if (autoOpened) {
+      await openLastPath();
+    } else if (GHMODE) {
+      updateTitle(); setStatus('「設定」で GitHub につないでください', 'warn');
+      openGhDialog();
+    } else {
+      updateTitle();
+      if (!FS) setStatus('このブラウザではファイルへの自動保存は使えません（ブラウザ内保存のみ）', 'warn');
+      else if (lastDir) setStatus('「前回のフォルダ」で続きから書けます', 'ok');
+      else setStatus('準備OK：左の「フォルダを開く」で原稿フォルダを選んでください', 'ok');
+    }
+    if (!FS && !SERVER && !GHMODE) { $('btnSaveAs').textContent = 'ダウンロード'; $('btnOpenDir').disabled = true; }
+    if (!GHMODE) editor.focus();
+    if (SERVER) maybeSync();
+    if (ON_WEB && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  })();
+})();
+</script>
+</body>
+</html>
